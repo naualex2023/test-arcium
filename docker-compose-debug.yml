@@ -1,0 +1,32 @@
+networks:
+  debug_network:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  # Имитация ноды 0
+  debug-node-0:
+    image: nicolaka/netshoot
+    container_name: debug-node-0
+    command: sleep infinity
+    networks:
+      debug_network:
+        ipv4_address: 172.20.0.100
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8001:8001"
+
+  # Имитация ноды 1
+  debug-node-1:
+    image: nicolaka/netshoot
+    container_name: debug-node-1
+    command: sleep infinity
+    networks:
+      debug_network:
+        ipv4_address: 172.20.0.101
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8002:8001"
