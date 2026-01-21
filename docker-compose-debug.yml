@@ -1,5 +1,6 @@
 networks:
   debug_network:
+    name: arcium_shared_network
     ipam:
       config:
         - subnet: 172.20.0.0/16
