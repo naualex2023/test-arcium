@@ -16,6 +16,8 @@ docker network prune -f
 export NO_PROXY=localhost,127.0.0.1,172.20.0.1,host.docker.internal,172.20.0.0/16,172.17.0.0/16
 export no_proxy=localhost,127.0.0.1,172.20.0.1,host.docker.internal,172.20.0.0/16,172.17.0.0/16
 
+ip addr | grep 172.20
+
 docker compose -f docker-compose-arx-env.yml down --remove-orphans ???
 
 DEFAULT_FORWARD_POLICY="ACCEPT" в /etc/default/ufw
