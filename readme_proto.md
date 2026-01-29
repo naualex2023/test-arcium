@@ -27,7 +27,7 @@ docker stop $(docker ps -aq)
 docker rm $(docker ps -aq)
 docker network prune -f
 sudo ip link delete br-6fca0d5af4c4
-sudo ip link delete br-1c7585f252f1
+sudo ip link delete br-24d6a2cb6f50
 
 alex@alex-IdeaPad-Slim-3-15AMN8:~/source/repos/test-arcium$ bash debug_network.sh
 🔍 Начинаем глубокую диагностику сети Arcium...
@@ -97,3 +97,11 @@ PING 8.8.8.8 (8.8.8.8) 1472(1500) bytes of data.
 --- 8.8.8.8 ping statistics ---
 2 packets transmitted, 2 received, 0% packet loss, time 1001ms
 rtt min/avg/max/mdev = 166.868/178.231/189.595/11.363 ms
+
+# Заменяем фильтр портов на фильтр по IP нод
+sudo tcpdump -i any -s 0 -w full_arx_capture.pcap host 172.20.0.100 or host 172.20.0.101
+# -i any: слушать все интерфейсы
+# -s 0: захватывать пакет целиком (не обрезать)
+# -w traffic_capture.pcap: сохранить в файл для Wireshark
+# "port 8899 or port 8900 or port 8001": фильтр, чтобы не записывать лишнее (google и т.д.)
+sudo tcpdump -i any -s 0 -w traffic_capture.pcap port 8899 or port 8900 or port 8001

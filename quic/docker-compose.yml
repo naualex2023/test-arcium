@@ -1,0 +1,25 @@
+networks:
+  arx_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  quic-server:
+    build: .
+    container_name: arx-sim-server
+    networks:
+      arx_network:
+        ipv4_address: 172.20.0.101
+    command: python quic_test.py server
+
+  quic-client:
+    build: .
+    container_name: arx-sim-client
+    depends_on:
+      - quic-server
+    networks:
+      arx_network:
+        ipv4_address: 172.20.0.100
+    command: python quic_test.py client
