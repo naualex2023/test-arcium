@@ -1,27 +1,40 @@
+services:
+  arx-trusted-dealer:
+    image: quic-trusted-dealer
+    container_name: arx-trusted-dealer
+    # Отключаем буферизацию Python
+    environment:
+      - PYTHONUNBUFFERED=1
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - ./cert.pem:/app/cert.pem:ro
+      - ./key.pem:/app/key.pem:ro
+      - ./quic_test.py:/app/quic_test.py
+    command: python -u quic_test.py server --port 8012
+    networks:
+      arx_network:
+        ipv4_address: 172.20.0.99
+
+  arx-sim-node:
+    image: quic-arx-node
+    container_name: arx-sim-node
+    environment:
+      - PYTHONUNBUFFERED=1
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - ./quic_test.py:/app/quic_test.py
+    command: python -u quic_test.py client --host 172.20.0.99 --port 8012
+    depends_on:
+      - arx-trusted-dealer
+    networks:
+      arx_network:
+        ipv4_address: 172.20.0.100
+
 networks:
   arx_network:
     driver: bridge
     ipam:
       config:
         - subnet: 172.20.0.0/16
-
-services:
-  # Наш новый "Доверенный Дилер"
-  trusted-dealer:
-    build: .
-    container_name: arx-trusted-dealer
-    networks:
-      arx_network:
-        ipv4_address: 172.20.0.99
-    command: python quic_test.py server --port 8012
-
-  # Обычная нода
-  arx-node:
-    build: .
-    container_name: arx-sim-node
-    depends_on:
-      - trusted-dealer
-    networks:
-      arx_network:
-        ipv4_address: 172.20.0.100
-    command: python quic_test.py client --host 172.20.0.99 --port 8012

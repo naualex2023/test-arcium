@@ -2,64 +2,74 @@ import argparse
 import asyncio
 import os
 import ssl
+import sys
 from aioquic.asyncio import connect, serve
 from aioquic.quic.configuration import QuicConfiguration
 
-def get_certs():
-    cert_file, key_file = "cert.pem", "key.pem"
-    if not os.path.exists(cert_file):
-        print("🛠 Генерируем сертификат (4096 бит)...")
-        os.system(f"openssl req -x509 -newkey rsa:4096 -keyout {key_file} -out {cert_file} -nodes -days 365 -subj '/CN=trusted-dealer'")
-    return cert_file, key_file
+def log(msg):
+    print(msg, flush=True)
 
 async def run_server(host, port):
-    cert, key = get_certs()
-    configuration = QuicConfiguration(is_client=False)
-    configuration.load_cert_chain(cert, key)
+    log(f"🛠 [Dealer] Загрузка TLS на {host}:{port}...")
+    cert_file, key_file = "cert.pem", "key.pem"
+    
+    if not os.path.exists(cert_file):
+        log("❌ [Dealer] КРИТИЧЕСКАЯ ОШИБКА: Файлы .pem не найдены!")
+        return
 
-    # Внутренняя логика обработки стрима
+    try:
+        configuration = QuicConfiguration(is_client=False)
+        configuration.load_cert_chain(cert_file, key_file)
+    except Exception as e:
+        log(f"💥 [Dealer] Ошибка конфига: {e}")
+        return
+
     async def handle_stream(reader, writer):
-        print(f"✅ [Dealer] Соединение установлено. Ожидаю запрос...")
+        log("📩 [Dealer] Входящий стрим подтвержден!")
         try:
-            data = await reader.read(1024 * 5) # Читаем запрос от ноды
-            print(f"📥 [Dealer] Получено от ноды: {len(data)} байт")
-            
-            # ТЕСТ НА 10 КБ: Это проверит ту самую "Checksum error"
-            heavy_data = b"TRUSTED_SECRET_PAYLOAD_" + os.urandom(1024 * 10)
-            print(f"📤 [Dealer] Отправляю тяжелый ответ (10240 байт)...")
-            writer.write(heavy_data)
-            # В aioquic writer.write не блокирующий, но мы можем подождать
+            await reader.read(1024)
+            writer.write(b"DATA_START_" + b"A" * 10240 + b"_DATA_END")
+            await writer.drain()
+            writer.write_eof()
+            log("📤 [Dealer] 10KB данных отправлено.")
         except Exception as e:
-            print(f"❌ Ошибка в стриме: {e}")
+            log(f"❌ [Dealer] Ошибка при передаче: {e}")
 
-    # Это тот самый хендлер, который вызывает библиотека
-    def stream_handler(reader, writer):
-        # Мы создаем задачу, чтобы корутина handle_stream выполнилась
-        asyncio.create_task(handle_stream(reader, writer))
-
-    print(f"🚀 [Dealer] Слушает на {host}:{port} (QUIC/UDP)")
-    await serve(host, port, configuration=configuration, stream_handler=stream_handler)
-    await asyncio.Future()
+    try:
+        await serve(
+            host, port, 
+            configuration=configuration, 
+            stream_handler=lambda r, w: asyncio.create_task(handle_stream(r, w))
+        )
+        log("🔌 [Dealer] UDP СОКЕТ ОТКРЫТ И СЛУШАЕТ.")
+        await asyncio.Future()
+    except Exception as e:
+        log(f"💥 [Dealer] Ошибка запуска сокета: {e}")
 
 async def run_client(host, port):
+    log(f"🤝 [Node] Попытка подключения к {host}:{port}...")
     configuration = QuicConfiguration(is_client=True)
     configuration.verify_mode = ssl.CERT_NONE
     
-    print(f"🤝 [Node] Пытаюсь подключиться к Дилеру {host}:{port}...")
+    # Ждем, пока сервер точно отрапортует об открытии сокета
+    await asyncio.sleep(2)
+    
     try:
         async with connect(host, port, configuration=configuration) as client:
+            log("✨ [Node] QUIC соединение установлено!")
             reader, writer = await client.create_stream()
-            print(f"✨ [Node] TLS 1.3 Handshake OK!")
+            writer.write(b"GET")
             
-            # Отправляем небольшой запрос
-            writer.write(b"GIVE_ME_KEY")
+            data = b""
+            while True:
+                chunk = await asyncio.wait_for(reader.read(4096), timeout=5.0)
+                if not chunk: break
+                data += chunk
+                log(f"📦 [Node] Получено: {len(data)} байт")
             
-            # Ждем тяжелый ответ
-            print(f"⏳ [Node] Ожидаю данные от дилера...")
-            response = await asyncio.wait_for(reader.read(15000), timeout=10.0)
-            print(f"📥 [Node] УСПЕХ! Получено {len(response)} байт без ошибок контрольной суммы.")
+            log(f"🏁 ТЕСТ ЗАВЕРШЕН: Принято {len(data)} байт.")
     except Exception as e:
-        print(f"💥 [Node] Ошибка связи или дешифровки: {e}")
+        log(f"💥 [Node] Ошибка связи: {type(e).__name__}: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -67,8 +77,8 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8012)
     args = parser.parse_args()
-    
+
     if args.mode == "server":
-        asyncio.run(run_server(args.host, args.port))
+        asyncio.run(run_server("0.0.0.0", args.port))
     else:
-        asyncio.run(run_client("172.20.0.99", 8012))
+        asyncio.run(run_client(args.host, args.port))

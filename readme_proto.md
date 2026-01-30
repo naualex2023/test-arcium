@@ -15,13 +15,16 @@ docker network prune -f
 
 export NO_PROXY=localhost,127.0.0.1,172.20.0.1,host.docker.internal,172.20.0.0/16,172.17.0.0/16
 export no_proxy=localhost,127.0.0.1,172.20.0.1,host.docker.internal,172.20.0.0/16,172.17.0.0/16
-
+d
 ip addr | grep 172.20
 
 docker compose -f docker-compose-arx-env.yml down --remove-orphans ???
 
 DEFAULT_FORWARD_POLICY="ACCEPT" в /etc/default/ufw
 DEFAULT_INPUT_POLICY="ACCEPT" в /etc/default/ufw
+
+export NO_PROXY="localhost,127.0.0.1,172.16.0.0/12,host.docker.internal"
+export no_proxy="1localhost,127.0.0.1,172.16.0.0/12,host.docker.internal"
 
 docker stop $(docker ps -aq)
 docker rm $(docker ps -aq)
